@@ -1,15 +1,15 @@
-import jdk.nashorn.internal.ir.annotations.Ignore;
 import org.arjun.interpreter.JavaLexer;
 import org.arjun.interpreter.JavaParser;
 import org.arjun.interpreter._interpreter_;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-@Ignore
 public class InterpTest {
 
+    @Disabled
     @Test
     public void interpreterTest(){
         String javaCode;

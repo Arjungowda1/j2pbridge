@@ -41,6 +41,14 @@ The visitor pattern allows me to separate the algorithm from the object structur
 2. Grammar used here can be found here: [JavaGrammar](https://github.com/antlr/grammars-v4/tree/master/java/java8)
 3. This application runs on Java8
 
+## Building
+### Using Gradle
+```bash
+./gradlew build
+```
+The JAR file will be created in the `build/libs` directory.
+
+
 ## Usage
 
 The tool can be run from the command line using the following syntax:
