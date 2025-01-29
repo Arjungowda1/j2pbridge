@@ -131,7 +131,21 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
     @Override
     public String visitLiteral(JavaParser.LiteralContext ctx) {
         if (ctx.NULL_LITERAL() != null) return "None";
-        if (ctx.BOOL_LITERAL() != null) return ctx.BOOL_LITERAL().getText().toLowerCase();
+        if (ctx.BOOL_LITERAL() != null) return ctx.BOOL_LITERAL().getText().equals("true") ? "True" : "False";
+        if (ctx.integerLiteral() != null) {
+            String text = ctx.getText().toLowerCase();
+            if (text.endsWith("l")) {
+                text = text.substring(0, text.length() - 1);
+            }
+            return text;
+        }
+        if (ctx.floatLiteral() != null) {
+            String text = ctx.getText().toLowerCase();
+            if (text.endsWith("f") || text.endsWith("d")) {
+                text = text.substring(0, text.length() - 1);
+            }
+            return text;
+        }
         return ctx.getText();
     }
 
@@ -245,8 +259,14 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
         if (ctx.bop != null && ctx.bop.getText().equals(".") && ctx.methodCall() != null) {
             String object = visit(ctx.expression(0));
             String methodCall = visit(ctx.methodCall());
-            if ("System.out".equals(object) && methodCall.startsWith("println")) {
-                return "print" + methodCall.substring(7); // Remove "println" and keep the arguments
+            if ("System.out".equals(object)){
+                if(methodCall.startsWith("println")) {
+                    return "print" + methodCall.substring(7);
+                }else if (methodCall.startsWith("printf")) {
+                    return "print" + methodCall.substring(6).replace("%d", "{}").replace("%s", "{}").replace("%f", "{}") + ".format";
+                } else if (methodCall.startsWith("print")) {
+                    return "print" + methodCall.substring(5);
+                }
             }
             return object + "." + methodCall;
         }
@@ -384,11 +404,11 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
                 .map(bodyDecl -> bodyDecl.memberDeclaration().constructorDeclaration())
                 .collect(Collectors.toList());
         boolean hasFields = false;
-        StringBuilder classFields = new StringBuilder();
+        List<String> classFields = new ArrayList<>();
         // Handle field declarations
         for (JavaParser.ClassBodyDeclarationContext bodyDecl : ctx.classBody().classBodyDeclaration()) {
             if (bodyDecl.memberDeclaration() != null && bodyDecl.memberDeclaration().fieldDeclaration() != null) {
-                classFields.append(visitFieldDeclaration(bodyDecl.memberDeclaration().fieldDeclaration()));
+                classFields.add(visitFieldDeclaration(bodyDecl.memberDeclaration().fieldDeclaration()));
                 hasFields = true;
             }
         }
@@ -397,7 +417,7 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
             result.append(indent()).append("def __init__(self):\n");
             indentLevel++;
             if(!hasFields) result.append(indent()).append("pass\n");
-            else result.append(indent()).append(classFields);
+            else classFields.forEach(i -> result.append(indent()).append(i));
             indentLevel--;
         } else {
             result.append(convertConstructors(constructors));
@@ -561,15 +581,6 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
         }
     }
 
-    private String mapJavaClassToPython(String javaClass) {
-        switch (javaClass) {
-            case "ArrayList": case "List": return "list";
-            case "HashMap": case "Map": return "dict";
-            case "HashSet": case "Set": return "set";
-            default: return javaClass;
-        }
-    }
-
     private String visitStatementBody(JavaParser.StatementContext ctx) {
         return ctx.block() != null ? visitBlock(ctx.block()) : indent() + visit(ctx).trim() + "\n";
     }
@@ -585,7 +596,8 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
             result.append(indent()).append("except ");
             if (catchClause.catchType() != null && !catchClause.catchType().getText().equals("Exception")) {
                 //TODO: unmapped exception types
-                result.append(visit(catchClause.catchType()));
+//                result.append(visit(catchClause.catchType()));
+                result.append("Exception");
             } else {
                 result.append("Exception");
             }
@@ -618,14 +630,16 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
         StringBuilder result = new StringBuilder();
         result.append(indent()).append("if ").append(visit(ctx.parExpression())).append(":\n");
         indentLevel++;
-        result.append(visitStatementBody(ctx.statement(0)));
+        String stmt = visitStatementBody(ctx.statement(0));
+        result.append(stmt != null && !stmt.isEmpty() ? stmt : indent()+"pass");
         indentLevel--;
 
         JavaParser.StatementContext elseStatement = ctx.statement(1);
         while (elseStatement != null && elseStatement.IF() != null) {
             result.append(indent()).append("elif ").append(visit(elseStatement.parExpression())).append(":\n");
             indentLevel++;
-            result.append(visitStatementBody(elseStatement.statement(0)));
+            stmt = visitStatementBody(elseStatement.statement(0));
+            result.append(stmt != null && !stmt.isEmpty() ? stmt : indent()+"pass");
             indentLevel--;
             elseStatement = elseStatement.statement(1);
         }
@@ -633,7 +647,8 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
         if (elseStatement != null) {
             result.append(indent()).append("else:\n");
             indentLevel++;
-            result.append(visitStatementBody(elseStatement));
+            stmt = visitStatementBody(elseStatement);
+            result.append(stmt != null && !stmt.isEmpty() ? stmt : indent()+"pass");
             indentLevel--;
         }
 
@@ -662,7 +677,7 @@ public class _interpreter_ extends JavaParserBaseVisitor<String>{
             for (JavaParser.BlockStatementContext blockStatement : caseGroup.blockStatement()) {
                 String stmt = visit(blockStatement);
                 if (!stmt.trim().equals("break")) {  // Skip 'break' statements
-                    result.append(indent()).append(stmt.trim()).append("\n");
+                    result.append(indent()).append(stmt.isEmpty() ? "pass" : stmt.trim()).append("\n");
                 }
             }
             indentLevel--;
